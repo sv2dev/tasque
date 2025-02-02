@@ -1,0 +1,7 @@
+.github
+node_modules
+bun.lock
+.gitignore
+jsr.json
+*.spec.ts
+tsconfig.json
