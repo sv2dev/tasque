@@ -1,6 +1,6 @@
 {
   "name": "@sv2dev/queue",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A simple TypeScript task queue",
   "main": "index.ts",
   "module": "index.ts",
