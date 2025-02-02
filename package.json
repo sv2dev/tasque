@@ -1,0 +1,14 @@
+{
+  "name": "@sv2dev/queue",
+  "version": "0.0.1",
+  "description": "A simple TypeScript task queue",
+  "main": "index.ts",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
