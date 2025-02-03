@@ -2,11 +2,13 @@
 
 A simple TypeScript task queue.
 
+[![bundle size](https://badgen.net/bundlephobia/minzip/@sv2dev/queue)](https://bundlephobia.com/package/@sv2dev/queue)
+
 ## Features
 
-- Specify the number of parallel tasks.
-- Define capacity.
-- React to queue position changes.
+- 🏎️ Specify the number of parallel tasks.
+- 🔒 Define capacity.
+- ⏱️ React to queue position changes.
 
 ## Usage
 
