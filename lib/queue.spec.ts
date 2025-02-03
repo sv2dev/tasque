@@ -79,4 +79,36 @@ describe("Queue", () => {
       expect(execute).toHaveBeenCalledTimes(3);
     });
   });
+
+  describe("position listener", () => {
+    it("should be called when a task is added to the queue", () => {
+      const queue = new Queue();
+      const listener = mock();
+
+      queue.push(execute, listener);
+
+      expect(listener).toHaveBeenCalledWith(1);
+    });
+
+    it("should be called when the queue position changes", async () => {
+      const queue = new Queue();
+      const listener = mock();
+
+      const res1 = queue.push(execute);
+      queue.push(execute, listener);
+
+      await res1;
+      expect(listener.mock.calls).toEqual([[2], [1]]);
+    });
+
+    it("should not be called when the task is executed", async () => {
+      const queue = new Queue();
+      const listener = mock();
+
+      const res = queue.push(execute, listener);
+
+      await res;
+      expect(listener.mock.calls).toEqual([[1]]);
+    });
+  });
 });
