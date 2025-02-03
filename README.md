@@ -4,25 +4,72 @@ A simple TypeScript task queue.
 
 ## Features
 
-- [x] Limit the maximum job queue size.
-- [x] Specify the number of concurrent jobs.
-- [ ] React to queue position changes.
+- Specify the number of parallel tasks.
+- Define capacity.
+- React to queue position changes.
 
 ## Usage
+
+### Sequential execution
+
+In this example, the tasks are executed one after the other.
 
 ```ts
 import { Queue } from "@sv2dev/queue";
 
 const queue = new Queue();
 
-const job1 = queue.push(async () => {
-  // do something
-});
+queue.push(async () => {});
+queue.push(async () => {});
+```
 
-const job2 = queue.push(async () => {
-  // do something
-});
+### Parallel execution
 
-await job1;
-await job2;
+In this example, always two tasks are executed in parallel. If one task is finished, another one is started.
+
+```ts
+import { Queue } from "@sv2dev/queue";
+
+const queue = new Queue({ parallelize: 2 });
+
+queue.push(async () => {});
+queue.push(async () => {});
+queue.push(async () => {});
+queue.push(async () => {});
+```
+
+### Queue capacity
+
+The queue will reject new tasks if it is full. By default, the queue can hold an arbitrary number of tasks.
+But the capacity can be limited by setting the `max` option.
+
+```ts
+import { Queue } from "@sv2dev/queue";
+
+const queue = new Queue({ max: 2 });
+
+const res1 = queue.push(async () => {});
+const res2 = queue.push(async () => {});
+const res3 = queue.push(async () => {});
+
+// res1 and res2 are Promises that resolve when the task is finished.
+// res3 is null, because the queue is full.
+```
+
+### React to queue position changes
+
+In this example, the task will log the queue position whenever it changes.
+
+```ts
+import { Queue } from "@sv2dev/queue";
+
+const queue = new Queue();
+
+queue.push(async () => {});
+queue.push(
+  async () => {},
+  (pos) => {
+    console.log(`This task is at queue position ${pos}`);
+  }
+);
 ```

@@ -1,5 +1,5 @@
 type Task<T = void> = () => Promise<T>;
-type ProgressListener = (progress: number) => void;
+type PositionListener = (position: number) => void;
 
 /**
  * A simple task queue.
@@ -34,7 +34,7 @@ export class Queue {
    * take effect as soon as one running task is finished.
    */
   parallelize: number;
-  #queue = [] as [Task<any>, ProgressListener][];
+  #queue = [] as [Task<any>, PositionListener?][];
   #running: Promise<any>[] = [];
 
   /**
@@ -61,11 +61,15 @@ export class Queue {
    * @param task - The job to push to the queue.
    * @returns A promise that resolves to the result of the job or `null` if the queue is full.
    */
-  push<T = void>(task: Task<T>): Promise<T> | null {
+  push<T = void>(
+    task: Task<T>,
+    positionListener?: PositionListener
+  ): Promise<T> | null {
     if (this.#queue.length >= this.max) return null;
     const p = new Promise<T>((resolve, reject) => {
       const wrapper = () => task().then(resolve, reject);
-      this.#queue.push([wrapper, () => {}]);
+      this.#queue.push([wrapper, positionListener]);
+      positionListener?.(this.#queue.length);
       if (this.#running.length === 0) this.#executeNext();
     });
     return p;
@@ -81,11 +85,12 @@ export class Queue {
         this.#queue.length > 0 &&
         this.#running.length < this.parallelize
       ) {
-        const [job] = this.#queue.shift()!;
-        const res = job();
+        const [task] = this.#queue.shift()!;
+        const res = task();
         res.finally(() => this.#running.splice(this.#running.indexOf(res), 1));
         this.#running.push(res);
       }
+      for (let i = 0; i < this.#queue.length; i++) this.#queue[i][1]?.(i + 1);
       // Wait for one of the current tasks to finish before executing the next one(s).
       await Promise.race(this.#running);
     }
