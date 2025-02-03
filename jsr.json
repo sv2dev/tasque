@@ -1,6 +1,6 @@
 {
   "name": "@sv2dev/queue",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "exports": "./index.ts",
   "publish": {
     "include": ["LICENSE", "README.md", "**/*.ts"],
