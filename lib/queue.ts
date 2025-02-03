@@ -23,17 +23,29 @@ type ProgressListener = (progress: number) => void;
  * ```
  */
 export class Queue {
-  #maxJobs = 10;
+  /**
+   * The maximum number of tasks that can be enqueued (excluding the currently running tasks).
+   * Changing this will not affect already enqueued tasks.
+   */
+  max: number;
+  /**
+   * The number of tasks that can be executed in parallel.
+   * Changing this will not affect already enqueued tasks and if it is scaled up, it will
+   * take effect as soon as one running task is finished.
+   */
+  parallelize: number;
   #queue = [] as [Task<any>, ProgressListener][];
-  #current: Promise<any> | null = null;
+  #running: Promise<any>[] = [];
 
   /**
    * Creates a new queue.
    *
-   * @param maxJobs - The maximum number of jobs that can be executed in parallel.
+   * @param max - The maximum number of tasks that can be enqueued (excluding the currently running tasks).
+   * @param parallelize - The number of tasks that can be executed in parallel.
    */
-  constructor(maxJobs = 10) {
-    this.#maxJobs = maxJobs;
+  constructor({ max = Number.MAX_SAFE_INTEGER, parallelize = 1 } = {}) {
+    this.max = max;
+    this.parallelize = parallelize;
   }
 
   /**
@@ -50,19 +62,32 @@ export class Queue {
    * @returns A promise that resolves to the result of the job or `null` if the queue is full.
    */
   push<T = void>(task: Task<T>): Promise<T> | null {
-    if (this.#queue.length >= this.#maxJobs) return null;
-    const p = new Promise<T>((resolve) => {
-      const wrapper = () => task().then(resolve);
+    if (this.#queue.length >= this.max) return null;
+    const p = new Promise<T>((resolve, reject) => {
+      const wrapper = () => task().then(resolve, reject);
       this.#queue.push([wrapper, () => {}]);
-      if (this.#current === null) this.#executeNext();
+      if (this.#running.length === 0) this.#executeNext();
     });
     return p;
   }
 
   async #executeNext() {
     while (this.#queue.length > 0) {
-      const [job] = this.#queue.shift()!;
-      await (this.#current = job());
+      // Defer execution to pick up all synchronously enqueued tasks.
+      await new Promise((resolve) => setTimeout(resolve));
+
+      // Execute as many tasks as possible in parallel.
+      while (
+        this.#queue.length > 0 &&
+        this.#running.length < this.parallelize
+      ) {
+        const [job] = this.#queue.shift()!;
+        const res = job();
+        res.finally(() => this.#running.splice(this.#running.indexOf(res), 1));
+        this.#running.push(res);
+      }
+      // Wait for one of the current tasks to finish before executing the next one(s).
+      await Promise.race(this.#running);
     }
   }
 }
