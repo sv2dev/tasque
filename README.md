@@ -5,7 +5,7 @@ A simple TypeScript task queue.
 ## Features
 
 - [x] Limit the maximum job queue size.
-- [ ] Specify the number of concurrent jobs.
+- [x] Specify the number of concurrent jobs.
 - [ ] React to queue position changes.
 
 ## Usage
