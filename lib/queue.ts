@@ -1,5 +1,8 @@
 type Task<T = void> = () => Promise<T>;
 type PositionListener = (position: number) => void;
+type IterableValue<T> =
+  | readonly [position: number]
+  | readonly [position: null, result: T];
 
 /**
  * A simple task queue.
@@ -37,6 +40,7 @@ export class Queue {
   #queue = [] as [Task<any>, PositionListener?][];
   #runningTasks: Promise<any>[] = [];
   #running = false;
+
   /**
    * Creates a new queue.
    *
@@ -49,17 +53,10 @@ export class Queue {
   }
 
   /**
-   * The number of tasks currently in the queue.
+   * The number of tasks currently enqueued (excluding the currently running tasks).
    */
   get size(): number {
     return this.#queue.length;
-  }
-
-  /**
-   * Whether the queue is currently running.
-   */
-  get running(): boolean {
-    return this.#running;
   }
 
   /**
@@ -81,16 +78,55 @@ export class Queue {
     positionListener?: PositionListener
   ): Promise<T> | null {
     if (this.#queue.length >= this.max) return null;
-    const p = new Promise<T>((resolve, reject) => {
+    return new Promise<T>((resolve, reject) => {
       const wrapper = () => task().then(resolve, reject);
       this.#queue.push([wrapper, positionListener]);
       positionListener?.(this.#queue.length);
-      if (this.#runningTasks.length === 0) this.#executeNext();
+      if (!this.#running) this.#run();
     });
-    return p;
   }
 
-  async #executeNext() {
+  /**
+   * Pushes a task to the queue and returns an async iterable that yields the queue position and the task result.
+   *
+   * Yields `[number]` when the queue position changes.
+   * Then yields `[null, T]` when the task is finished.
+   *
+   * @example
+   * ```ts
+   * const queue = new Queue();
+   *
+   * const iterable = queue.pushAndIterate(async () => "Hello, world!");
+   * for await (const [position, result] of iterable!) {
+   *   if(position === null) {
+   *     console.log("Task finished", result);
+   *   } else {
+   *     console.log("Queue position changed");
+   *   }
+   * }
+   * ```
+   * @param task - The task to push to the queue.
+   * @returns An async iterable that yields the queue position and the task result or `null` if the queue is full.
+   */
+  pushAndIterate<T>(task: Task<T>): AsyncIterable<IterableValue<T>> | null {
+    let resolve: (value: number) => void;
+    let positionPromise = new Promise<number>((r) => (resolve = r));
+    const taskPromise = this.push(task, (pos) => resolve(pos));
+    if (taskPromise === null) return null;
+    return (async function* () {
+      while (true) {
+        const res = await Promise.race([
+          positionPromise.then((pos) => [pos] as const),
+          taskPromise.then((value) => [null, value] as const),
+        ]);
+        yield res;
+        if (res[0] === null) return;
+        positionPromise = new Promise<number>((r) => (resolve = r));
+      }
+    })();
+  }
+
+  async #run() {
     if (this.#running) return;
     this.#running = true;
     while (this.#queue.length > 0) {
@@ -102,8 +138,9 @@ export class Queue {
         this.#queue.length > 0 &&
         this.#runningTasks.length < this.parallelize
       ) {
-        const [task] = this.#queue.shift()!;
+        const [task, positionListener] = this.#queue.shift()!;
         const res = task();
+        positionListener?.(0);
         res.finally(() =>
           this.#runningTasks.splice(this.#runningTasks.indexOf(res), 1)
         );

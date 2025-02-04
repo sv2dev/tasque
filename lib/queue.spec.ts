@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { Queue } from "./queue";
 
-const execute = mock(async () => {});
+const execute = mock(async () => "test");
 
 beforeEach(() => {
   execute.mockClear();
@@ -78,37 +78,80 @@ describe("Queue", () => {
       await res3;
       expect(execute).toHaveBeenCalledTimes(3);
     });
+
+    it("should continue executing tasks, even if a task throws an error", async () => {
+      const queue = new Queue();
+      const error = new Error("test");
+
+      const res1 = queue.push(async () => {
+        throw error;
+      });
+      const res2 = queue.push(execute);
+
+      try {
+        await res1;
+        throw new Error("The error was not thrown");
+      } catch (e) {
+        expect(e).toBe(error);
+      }
+      expect(await res2).toBe("test");
+    });
+
+    describe("position listener", () => {
+      it("should be called when a task is added to the queue", () => {
+        const queue = new Queue();
+        const listener = mock();
+
+        queue.push(execute, listener);
+
+        expect(listener).toHaveBeenCalledWith(1);
+      });
+
+      it("should be called when the queue position changes", async () => {
+        const queue = new Queue();
+        const listener = mock();
+
+        const res1 = queue.push(execute);
+        const res2 = queue.push(execute, listener);
+
+        await res1;
+        expect(listener.mock.calls).toEqual([[2], [1]]);
+        await res2;
+        expect(listener.mock.calls).toEqual([[2], [1], [0]]);
+      });
+
+      it("should not be called when the task is executed", async () => {
+        const queue = new Queue();
+        const listener = mock();
+
+        const res = queue.push(execute, listener);
+
+        await res;
+        expect(listener.mock.calls).toEqual([[1], [0]]);
+      });
+    });
   });
 
-  describe("position listener", () => {
-    it("should be called when a task is added to the queue", () => {
-      const queue = new Queue();
-      const listener = mock();
+  describe("pushAndIterate()", () => {
+    it("should return null, if the queue is full", () => {
+      const queue = new Queue({ max: 1 });
 
-      queue.push(execute, listener);
+      queue.push(execute);
+      const iterable = queue.pushAndIterate(execute);
 
-      expect(listener).toHaveBeenCalledWith(1);
+      expect(iterable).toBeNull();
     });
 
-    it("should be called when the queue position changes", async () => {
+    it("should return an async iterable, that yields the queue position and the task result", async () => {
       const queue = new Queue();
-      const listener = mock();
 
-      const res1 = queue.push(execute);
-      queue.push(execute, listener);
+      const iterable = queue.pushAndIterate(execute);
 
-      await res1;
-      expect(listener.mock.calls).toEqual([[2], [1]]);
-    });
-
-    it("should not be called when the task is executed", async () => {
-      const queue = new Queue();
-      const listener = mock();
-
-      const res = queue.push(execute, listener);
-
-      await res;
-      expect(listener.mock.calls).toEqual([[1]]);
+      expect(await Array.fromAsync(iterable!)).toEqual([
+        [1],
+        [0],
+        [null, "test"],
+      ]);
     });
   });
 });

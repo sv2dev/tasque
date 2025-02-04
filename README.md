@@ -6,9 +6,10 @@ A simple TypeScript task queue.
 
 ## Features
 
-- 🏎️ Specify the number of parallel tasks.
-- 🔒 Define capacity.
-- ⏱️ React to queue position changes.
+- 🏎️ Specify the number of parallel tasks
+- 🔒 Define capacity
+- ⏱️ React to queue position changes
+- ⏭️ Stream queue position and result
 
 ## Usage
 
@@ -71,7 +72,33 @@ queue.push(async () => {});
 queue.push(
   async () => {},
   (pos) => {
-    console.log(`This task is at queue position ${pos}`);
+    if (pos === 0) {
+      console.log(`Task is no longer queued and running`);
+    } else {
+      console.log(`This task is at queue position ${pos}`);
+    }
   }
 );
+```
+
+### Stream queue position and result
+
+In this example, the task will stream the queue position and the task result.
+
+```ts
+import { Queue } from "@sv2dev/queue";
+
+const queue = new Queue();
+
+const iterable = queue.pushAndIterate(async () => {});
+
+for await (const [pos, res] of iterable!) {
+  if (pos === null) {
+    console.log(`Task is finished with result ${res}`);
+  } else if (pos === 0) {
+    console.log(`Task is no longer queued and running`);
+  } else {
+    console.log(`Task is at queue position ${pos}`);
+  }
+}
 ```
