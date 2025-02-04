@@ -79,6 +79,24 @@ describe("Queue", () => {
       expect(execute).toHaveBeenCalledTimes(3);
     });
 
+    it("should continue executing tasks, even if a task throws an error", async () => {
+      const queue = new Queue();
+      const error = new Error("test");
+
+      const res1 = queue.push(async () => {
+        throw error;
+      });
+      const res2 = queue.push(execute);
+
+      try {
+        await res1;
+        throw new Error("The error was not thrown");
+      } catch (e) {
+        expect(e).toBe(error);
+      }
+      expect(await res2).toBe("test");
+    });
+
     describe("position listener", () => {
       it("should be called when a task is added to the queue", () => {
         const queue = new Queue();
