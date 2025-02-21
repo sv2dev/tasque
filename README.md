@@ -22,8 +22,8 @@ import { Queue } from "@sv2dev/queue";
 
 const queue = new Queue();
 
-queue.push(async () => {});
-queue.push(async () => {});
+queue.add(async () => {});
+queue.add(async () => {});
 ```
 
 ### Parallel execution
@@ -35,10 +35,10 @@ import { Queue } from "@sv2dev/queue";
 
 const queue = new Queue({ parallelize: 2 });
 
-queue.push(async () => {});
-queue.push(async () => {});
-queue.push(async () => {});
-queue.push(async () => {});
+queue.add(async () => {});
+queue.add(async () => {});
+queue.add(async () => {});
+queue.add(async () => {});
 ```
 
 ### Queue capacity
@@ -51,9 +51,9 @@ import { Queue } from "@sv2dev/queue";
 
 const queue = new Queue({ max: 2 });
 
-const res1 = queue.push(async () => {});
-const res2 = queue.push(async () => {});
-const res3 = queue.push(async () => {});
+const res1 = queue.add(async () => {});
+const res2 = queue.add(async () => {});
+const res3 = queue.add(async () => {});
 
 // res1 and res2 are Promises that resolve when the task is finished.
 // res3 is null, because the queue is full.
@@ -68,8 +68,8 @@ import { Queue } from "@sv2dev/queue";
 
 const queue = new Queue();
 
-queue.push(async () => {});
-queue.push(
+queue.add(async () => {});
+queue.add(
   async () => {},
   (pos) => {
     if (pos === 0) {
@@ -90,7 +90,7 @@ import { Queue } from "@sv2dev/queue";
 
 const queue = new Queue();
 
-const iterable = queue.pushAndIterate(async () => {});
+const iterable = queue.iterate(async () => {});
 
 for await (const [pos, res] of iterable!) {
   if (pos === null) {

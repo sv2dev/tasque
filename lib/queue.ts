@@ -37,8 +37,8 @@ export class Queue {
    * take effect as soon as one running task is finished.
    */
   parallelize: number;
-  #queue = [] as [Task<any>, PositionListener?][];
-  #runningTasks: Promise<any>[] = [];
+  #q = [] as [Task<any>, PositionListener?][];
+  #r: Promise<any>[] = [];
   #running = false;
 
   /**
@@ -55,39 +55,36 @@ export class Queue {
   /**
    * The number of tasks currently enqueued (excluding the currently running tasks).
    */
-  get size(): number {
-    return this.#queue.length;
+  get queued(): number {
+    return this.#q.length;
   }
 
   /**
    * The number of tasks currently running.
    */
-  get runningCount(): number {
-    return this.#runningTasks.length;
+  get running(): number {
+    return this.#r.length;
   }
 
   /**
-   * Pushes a task to the queue.
+   * Adds a task to the queue.
    *
-   * @param task - The task to push to the queue.
-   * @param positionListener - A listener that is called every time the queue position of the task changes.
+   * @param task - The task to add to the queue.
+   * @param listener - A listener that is called every time the queue position of the task changes.
    * @returns A promise that resolves to the result of the task or `null` if the queue is full.
    */
-  push<T = void>(
-    task: Task<T>,
-    positionListener?: PositionListener
-  ): Promise<T> | null {
-    if (this.#queue.length >= this.max) return null;
+  add<T = void>(task: Task<T>, listener?: PositionListener): Promise<T> | null {
+    if (this.#q.length >= this.max) return null;
     return new Promise<T>((resolve, reject) => {
       const wrapper = () => task().then(resolve, reject);
-      this.#queue.push([wrapper, positionListener]);
-      positionListener?.(this.#queue.length);
+      this.#q.push([wrapper, listener]);
+      listener?.(this.#q.length);
       if (!this.#running) this.#run();
     });
   }
 
   /**
-   * Pushes a task to the queue and returns an async iterable that yields the queue position and the task result.
+   * Adds a task to the queue and returns an async iterable that yields the queue position and the task result.
    *
    * Yields `[number]` when the queue position changes.
    * Then yields `[null, T]` when the task is finished.
@@ -96,7 +93,7 @@ export class Queue {
    * ```ts
    * const queue = new Queue();
    *
-   * const iterable = queue.pushAndIterate(async () => "Hello, world!");
+   * const iterable = queue.iterate(async () => "Hello, world!");
    * for await (const [position, result] of iterable!) {
    *   if(position === null) {
    *     console.log("Task finished", result);
@@ -105,13 +102,13 @@ export class Queue {
    *   }
    * }
    * ```
-   * @param task - The task to push to the queue.
+   * @param task - The task to add to the queue.
    * @returns An async iterable that yields the queue position and the task result or `null` if the queue is full.
    */
-  pushAndIterate<T>(task: Task<T>): AsyncIterable<IterableValue<T>> | null {
+  iterate<T>(task: Task<T>): AsyncIterable<IterableValue<T>> | null {
     let resolve: (value: number) => void;
     let positionPromise = new Promise<number>((r) => (resolve = r));
-    const taskPromise = this.push(task, (pos) => resolve(pos));
+    const taskPromise = this.add(task, (pos) => resolve(pos));
     if (taskPromise === null) return null;
     return (async function* () {
       while (true) {
@@ -129,26 +126,21 @@ export class Queue {
   async #run() {
     if (this.#running) return;
     this.#running = true;
-    while (this.#queue.length > 0) {
+    while (this.queued > 0) {
       // Defer execution to pick up all synchronously enqueued tasks.
       await new Promise((resolve) => setTimeout(resolve));
 
       // Execute as many tasks as possible in parallel.
-      while (
-        this.#queue.length > 0 &&
-        this.#runningTasks.length < this.parallelize
-      ) {
-        const [task, positionListener] = this.#queue.shift()!;
-        const res = task();
+      while (this.queued > 0 && this.running < this.parallelize) {
+        const [task, positionListener] = this.#q.shift()!;
         positionListener?.(0);
-        res.finally(() =>
-          this.#runningTasks.splice(this.#runningTasks.indexOf(res), 1)
-        );
-        this.#runningTasks.push(res);
+        const res = task();
+        res.finally(() => this.#r.splice(this.#r.indexOf(res), 1));
+        this.#r.push(res);
       }
-      for (let i = 0; i < this.#queue.length; i++) this.#queue[i][1]?.(i + 1);
+      for (let i = 0; i < this.queued; i++) this.#q[i][1]?.(i + 1);
       // Wait for one of the current tasks to finish before executing the next one(s).
-      await Promise.race(this.#runningTasks);
+      await Promise.race(this.#r);
     }
     this.#running = false;
   }
