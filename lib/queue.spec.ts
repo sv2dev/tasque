@@ -1,3 +1,4 @@
+import { sleep } from "bun";
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { Queue } from "./queue";
 
@@ -22,7 +23,6 @@ describe("Queue", () => {
     it("should enqueue a task, if there is already a task running", async () => {
       const queue = new Queue();
       queue.add(execute);
-      await new Promise((resolve) => setTimeout(resolve));
 
       queue.add(execute);
 
@@ -40,14 +40,19 @@ describe("Queue", () => {
 
     it("should return null, if the queue is full", () => {
       const queue = new Queue({ max: 2 });
+      // first is immediately executed
       const result1 = queue.add(execute);
+      // second and third are queued
       const result2 = queue.add(execute);
-
       const result3 = queue.add(execute);
+
+      // queue is full
+      const result4 = queue.add(execute);
 
       expect(result1).toBeInstanceOf(Promise);
       expect(result2).toBeInstanceOf(Promise);
-      expect(result3).toBeNull();
+      expect(result3).toBeInstanceOf(Promise);
+      expect(result4).toBeNull();
     });
 
     it("should execute the next task, when the current one is finished", async () => {
@@ -65,17 +70,25 @@ describe("Queue", () => {
 
     it("should run a configured amount of tasks in parallel", async () => {
       const queue = new Queue({ parallelize: 2 });
+      let r1!: (x: string) => void;
+      const p1 = new Promise<string>((resolve) => (r1 = resolve));
+      let r2!: (x: string) => void;
+      const p2 = new Promise<string>((resolve) => (r2 = resolve));
+      let r3!: (x: string) => void;
+      const p3 = new Promise<string>((resolve) => (r3 = resolve));
+      execute.mockImplementationOnce(() => p1);
+      execute.mockImplementationOnce(() => p2);
+      execute.mockImplementationOnce(() => p3);
 
       const res1 = queue.add(execute);
-      queue.add(execute);
+      const res2 = queue.add(execute);
       const res3 = queue.add(execute);
 
       // The first task should be started in parallel with the second one.
-      await res1;
       expect(execute).toHaveBeenCalledTimes(2);
-
       // The third task was not executed immediately, because the queue is full.
-      await res3;
+      r1("test");
+      await sleep(0);
       expect(execute).toHaveBeenCalledTimes(3);
     });
 
@@ -98,45 +111,38 @@ describe("Queue", () => {
     });
 
     describe("position listener", () => {
-      it("should be called when a task is added to the queue", () => {
+      it("should be called with 0, if a task is added to the queue and executed immediately", async () => {
         const queue = new Queue();
         const listener = mock();
 
         queue.add(execute, listener);
+        await new Promise((resolve) => setTimeout(resolve));
 
-        expect(listener).toHaveBeenCalledWith(1);
+        expect(listener.mock.calls).toEqual([[0]]);
       });
 
       it("should be called when the queue position changes", async () => {
         const queue = new Queue();
         const listener = mock();
 
-        const res1 = queue.add(execute);
+        queue.add(execute);
         const res2 = queue.add(execute, listener);
 
-        await res1;
-        expect(listener.mock.calls).toEqual([[2], [1]]);
         await res2;
-        expect(listener.mock.calls).toEqual([[2], [1], [0]]);
-      });
-
-      it("should not be called when the task is executed", async () => {
-        const queue = new Queue();
-        const listener = mock();
-
-        const res = queue.add(execute, listener);
-
-        await res;
         expect(listener.mock.calls).toEqual([[1], [0]]);
       });
     });
   });
 
-  describe("pushAndIterate()", () => {
+  describe("iterate()", () => {
     it("should return null, if the queue is full", () => {
       const queue = new Queue({ max: 1 });
-
+      // first is immediately executed
       queue.add(execute);
+      // second is queued
+      queue.add(execute);
+
+      // queue is full
       const iterable = queue.iterate(execute);
 
       expect(iterable).toBeNull();
@@ -147,11 +153,7 @@ describe("Queue", () => {
 
       const iterable = queue.iterate(execute);
 
-      expect(await Array.fromAsync(iterable!)).toEqual([
-        [1],
-        [0],
-        [null, "test"],
-      ]);
+      expect(await Array.fromAsync(iterable!)).toEqual([[0], [null, "test"]]);
     });
 
     it("should yield the correct queue positions", async () => {
@@ -166,9 +168,9 @@ describe("Queue", () => {
       const events3 = Array.fromAsync(iterable3!);
 
       expect(await Promise.all([events1, events2, events3])).toEqual([
+        [[0], [null, "test"]],
+        [[0], [null, "test"]],
         [[1], [0], [null, "test"]],
-        [[2], [0], [null, "test"]],
-        [[3], [1], [0], [null, "test"]],
       ]);
     });
 
@@ -187,9 +189,6 @@ describe("Queue", () => {
       ]);
 
       expect(events).toEqual([
-        [1, 1],
-        [2, 2],
-        [3, 3],
         [1, 0],
         [2, 0],
         [3, 1],
@@ -204,6 +203,21 @@ describe("Queue", () => {
           events.push([id, ...event]);
         }
       }
+    });
+
+    it("should iterate over an async iterable", async () => {
+      const queue = new Queue();
+
+      const iterable = queue.iterate(async function* () {
+        yield "a";
+        yield "b";
+      });
+
+      expect(await Array.fromAsync(iterable!)).toEqual([
+        [0],
+        [null, "a"],
+        [null, "b"],
+      ]);
     });
   });
 });
