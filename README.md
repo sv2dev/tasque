@@ -2,14 +2,15 @@
 
 A simple TypeScript task queue.
 
-[![bundle size](https://badgen.net/bundlephobia/minzip/@sv2dev/queue)](https://bundlephobia.com/package/@sv2dev/queue)
+This library is built with low overhead in mind: [![bundle size](https://badgen.net/bundlephobia/minzip/@sv2dev/queue)](https://bundlephobia.com/package/@sv2dev/queue)
 
 ## Features
 
-- 🏎️ Specify the number of parallel tasks
-- 🔒 Define capacity
-- ⏱️ React to queue position changes
-- ⏭️ Stream queue position and result
+- [🏎️ Specify the number of parallel tasks](#parallel-execution)
+- [🔒 Define capacity](#queue-capacity)
+- [⏱️ React to queue position changes](#react-to-queue-position-changes)
+- [⏭️ Stream queue position and result](#stream-queue-position-and-result)
+- [🚫 Discard tasks](#discard-tasks)
 
 ## Usage
 
@@ -68,7 +69,6 @@ import { Queue } from "@sv2dev/queue";
 
 const queue = new Queue();
 
-queue.add(async () => {});
 queue.add(
   async () => {},
   (pos) => {
@@ -90,7 +90,7 @@ import { Queue } from "@sv2dev/queue";
 
 const queue = new Queue();
 
-const iterable = queue.iterate(async () => {});
+const iterable = queue.add(async () => {});
 
 for await (const [pos, res] of iterable!) {
   if (pos === null) {
@@ -102,3 +102,34 @@ for await (const [pos, res] of iterable!) {
   }
 }
 ```
+
+### Streaming tasks
+
+Tasks that not only return a result but yield values can be streamed as well.
+
+```ts
+const iterable = queue.add(async function* () {
+  yield "Hello,";
+  yield "world!";
+});
+
+for await (const [pos, res] of iterable!) {
+  if (pos === null) {
+    console.log(`The task yielded this value: ${res}`);
+  }
+}
+```
+
+### Discard tasks
+
+If you want to discard a task, you have to use iterable version of the `add` method.
+
+```ts
+const iterable = queue.add(async () => {});
+
+for await (const [pos, res] of iterable!) {
+  break; // Discards the task
+}
+```
+
+This only works if the task is not already running.
