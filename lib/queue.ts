@@ -78,18 +78,7 @@ export class Queue {
    * @param listener - A listener that is called every time the queue position of the task changes.
    * @returns A promise that resolves to the result of the task or `null` if the queue is full.
    */
-  add<T = void>(task: Task<T>, listener?: PositionListener): Promise<T> | null {
-    const iterator = this.iterate(task);
-    if (!iterator) return null;
-    return (async () => {
-      for await (const [pos, value] of iterator) {
-        if (pos !== null) listener?.(pos);
-        else return value as T;
-      }
-      throw new Error("Unexpected end of iteration");
-    })();
-  }
-
+  add<T = void>(task: Task<T>, listener: PositionListener): Promise<T> | null;
   /**
    * Adds a task to the queue and returns an async iterable that yields the queue position and the task result.
    *
@@ -129,16 +118,24 @@ export class Queue {
    * @param task - The task to add to the queue.
    * @returns An async iterable that yields the queue position and the task result or `null` if the queue is full.
    */
-  iterate<T>(
-    task: Task<T> | (() => AsyncIterable<T>)
-  ): AsyncGenerator<IterableValue<T>> | null {
+  add<T = void>(task: Task<T>): AsyncIterable<IterableValue<T>> | null;
+  add<T = void>(
+    task: Task<T>,
+    listener?: PositionListener
+  ): AsyncIterable<IterableValue<T>> | Promise<T> | null {
     if (this._q >= this.max) return null;
-    return this.#iterate(task);
+    const iterator = this.#iterate(task);
+    if (!listener) return iterator;
+    return (async () => {
+      for await (const [pos, value] of iterator) {
+        if (pos !== null) listener?.(pos);
+        else return value as T;
+      }
+      throw new Error("Unexpected end of iteration");
+    })();
   }
 
-  async *#iterate<T>(
-    task: Task<T> | (() => AsyncIterable<T>)
-  ): AsyncGenerator<IterableValue<T>, void, unknown> {
+  async *#iterate<T>(task: Task<T>): AsyncGenerator<IterableValue<T>> {
     let t: AsyncIterable<T> | Promise<T> | null = null;
     let pos = this.parallelize > this._r ? 0 : ++this._q;
     try {
