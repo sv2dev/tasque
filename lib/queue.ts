@@ -140,8 +140,8 @@ export class Queue {
     let pos = this.parallelize > this._r ? 0 : ++this._q;
     try {
       if (pos > 0) {
-        for (let pos = this._q; pos > 0; pos--) {
-          yield [pos];
+        while (pos > 0) {
+          yield [pos--];
           await this._d;
         }
         this._q--;

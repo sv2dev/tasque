@@ -1,5 +1,5 @@
 import { sleep } from "bun";
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { Queue } from "./queue";
 
 const execute = mock(async () => "test");
@@ -177,19 +177,18 @@ describe("add()", () => {
 
     it("should yield the correct queue positions in the correct order", async () => {
       const queue = new Queue({ parallelize: 2 });
-      const events: any[] = [];
 
       const iterable1 = queue.add(execute);
       const iterable2 = queue.add(execute);
       const iterable3 = queue.add(execute);
 
       await Promise.all([
-        iterate(1, iterable1!),
-        iterate(2, iterable2!),
-        iterate(3, iterable3!),
+        iterateWithId(1, iterable1!),
+        iterateWithId(2, iterable2!),
+        iterateWithId(3, iterable3!),
       ]);
 
-      expect(events).toEqual([
+      expect(iteratedEvents).toEqual([
         [1, 0],
         [2, 0],
         [3, 1],
@@ -198,12 +197,6 @@ describe("add()", () => {
         [3, 0],
         [3, null, "test"],
       ]);
-
-      async function iterate(id: number, iterable: AsyncIterable<any>) {
-        for await (const event of iterable) {
-          events.push([id, ...event]);
-        }
-      }
     });
 
     it("should iterate over an async iterable", async () => {
@@ -220,5 +213,59 @@ describe("add()", () => {
         [null, "b"],
       ]);
     });
+
+    it("should correctly count positions, if the queue is emptied and then filled again", async () => {
+      const queue = new Queue();
+      const iterable1 = queue.add(execute);
+      const iterable2 = queue.add(execute);
+      const iterable3 = queue.add(execute);
+      await Promise.all([
+        iterateWithId(1, iterable1!),
+        iterateWithId(2, iterable2!),
+        iterateWithId(3, iterable3!),
+      ]);
+      const iterable4 = queue.add(execute);
+      const iterable5 = queue.add(execute);
+      const iterable6 = queue.add(execute);
+
+      await Promise.all([
+        iterateWithId(4, iterable4!),
+        iterateWithId(5, iterable5!),
+        iterateWithId(6, iterable6!),
+      ]);
+
+      expect(iteratedEvents).toEqual([
+        [1, 0],
+        [2, 1],
+        [3, 2],
+        [1, null, "test"],
+        [2, 0],
+        [3, 1],
+        [2, null, "test"],
+        [3, 0],
+        [3, null, "test"],
+        [4, 0],
+        [5, 1],
+        [6, 2],
+        [4, null, "test"],
+        [5, 0],
+        [6, 1],
+        [5, null, "test"],
+        [6, 0],
+        [6, null, "test"],
+      ]);
+    });
   });
+});
+
+const iteratedEvents: any[] = [];
+
+async function iterateWithId(id: number, iterable: AsyncIterable<any>) {
+  for await (const event of iterable) {
+    iteratedEvents.push([id, ...event]);
+  }
+}
+
+afterEach(() => {
+  iteratedEvents.length = 0;
 });
