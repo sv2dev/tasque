@@ -141,8 +141,9 @@ export class Queue {
     try {
       if (pos > 0) {
         while (pos > 0) {
-          yield [pos--];
+          yield [pos];
           await this._d;
+          pos--;
         }
         this._q--;
       }

@@ -255,6 +255,50 @@ describe("add()", () => {
         [6, null, "test"],
       ]);
     });
+
+    it("should unqueue a task when iteration aborts while in the queue", async () => {
+      const queue = new Queue();
+      const iterable1 = queue.add(execute)!;
+      const iterable2 = queue.add(execute)!;
+
+      await Promise.all([
+        iterateWithId(1, iterable1),
+        (async function () {
+          for await (const [pos, result] of iterable2) {
+            iteratedEvents.push([2, pos, result]);
+            if (pos === 1) return;
+          }
+        })(),
+      ]);
+
+      expect(queue.queued).toBe(0);
+      expect(queue.running).toBe(0);
+      expect(iteratedEvents).toEqual([
+        [1, 0],
+        [2, 1],
+        [1, null, "test"],
+      ]);
+    });
+
+    it("should not queue a task, if it is aborted before it is iterated over", async () => {
+      const queue = new Queue();
+      const iterable1 = queue.add(execute)!;
+      const iterable2 = queue.add(execute)!;
+
+      iterable1[Symbol.asyncIterator]().return?.();
+
+      await Promise.all([
+        iterateWithId(1, iterable1),
+        iterateWithId(2, iterable2),
+      ]);
+
+      expect(queue.queued).toBe(0);
+      expect(queue.running).toBe(0);
+      expect(iteratedEvents).toEqual([
+        [2, 0],
+        [2, null, "test"],
+      ]);
+    });
   });
 });
 
