@@ -348,6 +348,53 @@ describe("error handling", () => {
   });
 });
 
+describe("max queue size", () => {
+  it("should respect dynamic changes to max queue size", async () => {
+    const queue = new Queue({ max: 2, parallelize: 1 });
+
+    // First task runs immediately
+    queue.add(execute, noop);
+    // Second and third tasks are queued
+    queue.add(execute, noop);
+    queue.add(execute, noop);
+
+    // Queue is full
+    expect(queue.add(execute, noop)).toBeNull();
+
+    // Increase max queue size
+    queue.max = 3;
+
+    // Now we can add one more
+    const result = queue.add(execute, noop);
+    expect(result).toBeInstanceOf(Promise);
+
+    // But no more than that
+    expect(queue.add(execute, noop)).toBeNull();
+  });
+
+  it("should handle decreasing max queue size", async () => {
+    const queue = new Queue({ max: 5, parallelize: 1 });
+
+    // First task runs immediately
+    queue.add(execute, noop);
+    // Next tasks are queued
+    queue.add(execute, noop);
+    queue.add(execute, noop);
+    queue.add(execute, noop);
+
+    // Decrease max queue size - should not affect already queued tasks
+    queue.max = 1;
+
+    // Can't add more tasks now
+    expect(queue.add(execute, noop)).toBeNull();
+
+    // But all previously queued tasks should still execute
+    expect(execute).toHaveBeenCalledTimes(1);
+    await sleep(100);
+    expect(execute).toHaveBeenCalledTimes(4);
+  });
+});
+
 const iteratedEvents: any[] = [];
 
 async function iterateWithId(id: number, iterable: AsyncIterable<any>) {
