@@ -395,6 +395,43 @@ describe("max queue size", () => {
   });
 });
 
+describe("edge cases", () => {
+  it("should handle empty tasks correctly", async () => {
+    const queue = new Queue();
+
+    const result = await queue.add(async () => {}, noop);
+
+    expect(result).toBeUndefined();
+  });
+
+  it("should handle synchronous errors in task creation", async () => {
+    const queue = new Queue();
+    const error = new Error("sync error");
+
+    const task = mock(() => {
+      throw error;
+    });
+
+    try {
+      await queue.add(task, noop);
+      throw new Error("Error was not thrown");
+    } catch (e) {
+      expect(e).toBe(error);
+    }
+
+    expect(queue.running).toBe(0);
+    expect(queue.queued).toBe(0);
+  });
+
+  it("should handle synchronous tasks", async () => {
+    const queue = new Queue();
+
+    const result = await queue.add(() => "direct value" as any, noop);
+
+    expect(result).toBe("direct value");
+  });
+});
+
 const iteratedEvents: any[] = [];
 
 async function iterateWithId(id: number, iterable: AsyncIterable<any>) {
