@@ -131,6 +131,16 @@ queue.add(
 );
 ```
 
+Alternatively, you can also use the `listener` option to pass a listener function to the `add` method.
+
+```ts
+queue.add(async () => {}, {
+  listener: (pos) => {
+    console.log(`This task is at queue position ${pos}`);
+  },
+});
+```
+
 ### Stream queue position and values
 
 In this example, the task will stream the queue position and the task values.
