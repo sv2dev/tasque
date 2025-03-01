@@ -5,6 +5,7 @@ type IterableValue<T> =
   | readonly [position: null, result: T];
 type TaskOpts = {
   listener?: PositionListener;
+  signal?: AbortSignal;
 };
 type IterateOpts = Omit<TaskOpts, "listener">;
 
@@ -157,15 +158,20 @@ export class Queue {
 
   private async *i<T>(
     task: Task<T>,
-    opts?: IterateOpts
+    { signal }: IterateOpts = {}
   ): AsyncGenerator<IterableValue<T>> {
     let t!: T | AsyncIterable<T> | Promise<T> | undefined;
     let pos = this.p > this.r ? 0 : ++this.q;
+    const abortPromise =
+      signal &&
+      new Promise((_, r) =>
+        signal.addEventListener("abort", () => r(signal.reason))
+      );
     try {
       if (pos > 0) {
         while (pos > 0) {
           yield [pos];
-          await this.d;
+          await (abortPromise ? Promise.race([abortPromise, this.d]) : this.d);
           if (this.p >= this.r) pos--;
         }
         this.q--;
