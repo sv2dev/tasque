@@ -302,6 +302,52 @@ describe("add()", () => {
   });
 });
 
+describe("error handling", () => {
+  it("should handle errors in async iterables correctly", async () => {
+    const queue = new Queue();
+    const error = new Error("async iterable error");
+
+    const iterable = queue.add(async function* () {
+      yield "first value";
+      throw error;
+    });
+
+    const results: any[] = [];
+    try {
+      for await (const event of iterable!) {
+        results.push(event);
+      }
+      throw new Error("Error was not thrown");
+    } catch (e) {
+      expect(e).toBe(error);
+    }
+
+    expect(results).toEqual([[0], [null, "first value"]]);
+    expect(queue.queued).toBe(0);
+    expect(queue.running).toBe(0);
+  });
+
+  it("should continue processing queue after an async iterable throws", async () => {
+    const queue = new Queue();
+    const error = new Error("async iterable error");
+
+    const iterable1 = queue.add(async function* () {
+      yield "value";
+      throw error;
+    });
+    const iterable2 = queue.add(execute);
+
+    try {
+      await Array.fromAsync(iterable1!);
+    } catch (e) {
+      expect(e).toBe(error);
+    }
+
+    const results = await Array.fromAsync(iterable2!);
+    expect(results).toEqual([[0], [null, "test"]]);
+  });
+});
+
 const iteratedEvents: any[] = [];
 
 async function iterateWithId(id: number, iterable: AsyncIterable<any>) {
