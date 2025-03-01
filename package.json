@@ -1,6 +1,6 @@
 {
   "name": "@sv2dev/queue",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "A simple TypeScript task queue",
   "main": "dist/queue.js",
   "module": "dist/queue.js",

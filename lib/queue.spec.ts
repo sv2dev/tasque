@@ -544,6 +544,28 @@ describe("edge cases", () => {
   });
 });
 
+describe("abort signal", () => {
+  it("should abort a task when queued", async () => {
+    const queue = new Queue({ parallelize: 0 });
+    let r!: (x: string) => void;
+    const p = new Promise<string>((resolve) => (r = resolve));
+    const task = mock(() => p);
+    const ctrl = new AbortController();
+
+    let res = queue.add(task, { signal: ctrl.signal });
+    try {
+      ctrl.abort();
+      await res;
+      throw new Error("Error was not thrown");
+    } catch (e) {
+      expect(e).toBe(ctrl.signal.reason);
+    }
+
+    expect(queue.running).toBe(0);
+    expect(queue.queued).toBe(0);
+  });
+});
+
 const iteratedEvents: any[] = [];
 
 async function iterateWithId(id: number, iterable: AsyncIterable<any>) {
