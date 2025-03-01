@@ -3,6 +3,10 @@ type PositionListener = (position: number) => void;
 type IterableValue<T> =
   | readonly [position: number]
   | readonly [position: null, result: T];
+type TaskOpts = {
+  listener?: PositionListener;
+};
+type IterateOpts = Omit<TaskOpts, "listener">;
 
 /**
  * A simple task queue.
@@ -45,13 +49,13 @@ export class Queue {
     while (diff-- > 0) setTimeout(() => this.n());
   }
   private p = 1;
-  /** The number of tasks currently enqueued (excluding the currently running tasks). */
+  /** Internal: The number of tasks currently enqueued (excluding the currently running tasks). */
   private q = 0;
-  /** The number of currently running tasks. */
+  /** Internal: The number of currently running tasks. */
   private r = 0;
-  /** Notifies completion of a task. */
+  /** Internal: Notifies completion of a task. */
   private c!: () => void;
-  /** A promise which is resolved and recreated, every time a task is done. */
+  /** Internal: A promise which is resolved and recreated, every time a task is done. */
   private d!: Promise<void>;
 
   /**
@@ -84,10 +88,27 @@ export class Queue {
    * Adds a task to the queue.
    *
    * @param task - The task to add to the queue.
-   * @param listener - A listener that is called every time the queue position of the task changes.
+   * @param opts - A listener that is called every time the queue position of the task changes or options.
    * @returns A promise that resolves to the result of the task or `null` if the queue is full.
+   *   If the task is iterable, the last yielded value is returned.
    */
-  add<T = void>(task: Task<T>, listener: PositionListener): Promise<T> | null;
+  add<T = void>(
+    task: Task<T>,
+    opts?: PositionListener | TaskOpts
+  ): Promise<T> | null {
+    if (this.q >= this.max) return null;
+    if (typeof opts === "function") opts = { listener: opts };
+    const iterator = this.i(task, opts);
+    return (async () => {
+      let value!: T;
+      for await (const [pos, v] of iterator) {
+        if (pos !== null) opts?.listener?.(pos);
+        else value = v as T;
+      }
+      return value;
+    })();
+  }
+
   /**
    * Adds a task to the queue and returns an async iterable that yields the queue position and the task result.
    *
@@ -127,24 +148,17 @@ export class Queue {
    * @param task - The task to add to the queue.
    * @returns An async iterable that yields the queue position and the task result or `null` if the queue is full.
    */
-  add<T = void>(task: Task<T>): AsyncIterable<IterableValue<T>> | null;
-  add<T = void>(
+  iterate<T = void>(
     task: Task<T>,
-    listener?: PositionListener
-  ): AsyncIterable<IterableValue<T>> | Promise<T> | null {
-    if (this.q >= this.max) return null;
-    const iterator = this.i(task);
-    if (!listener) return iterator;
-    return (async () => {
-      for await (const [pos, value] of iterator) {
-        if (pos !== null) listener?.(pos);
-        else return value as T;
-      }
-      throw new Error("Unexpected end of iteration");
-    })();
+    opts?: IterateOpts
+  ): AsyncIterable<IterableValue<T>> | null {
+    return this.q >= this.max ? null : this.i(task, opts);
   }
 
-  private async *i<T>(task: Task<T>): AsyncGenerator<IterableValue<T>> {
+  private async *i<T>(
+    task: Task<T>,
+    opts?: IterateOpts
+  ): AsyncGenerator<IterableValue<T>> {
     let t!: T | AsyncIterable<T> | Promise<T> | undefined;
     let pos = this.p > this.r ? 0 : ++this.q;
     try {
