@@ -302,6 +302,110 @@ describe("add()", () => {
   });
 });
 
+describe("dynamic parallelization", () => {
+  it("should adapt to increased parallelization", async () => {
+    const queue = new Queue({ parallelize: 1 });
+    let r1!: (x: string) => void;
+    let r2!: (x: string) => void;
+    let r3!: (x: string) => void;
+
+    const p1 = new Promise<string>((resolve) => (r1 = resolve));
+    const p2 = new Promise<string>((resolve) => (r2 = resolve));
+    const p3 = new Promise<string>((resolve) => (r3 = resolve));
+
+    const task1 = mock(() => p1);
+    const task2 = mock(() => p2);
+    const task3 = mock(() => p3);
+
+    // Add three tasks with parallelization = 1
+    const res1 = queue.add(task1, noop);
+    const res2 = queue.add(task2, noop);
+    const res3 = queue.add(task3, noop);
+
+    // Only first task should be running
+    expect(task1).toHaveBeenCalledTimes(1);
+    expect(task2).toHaveBeenCalledTimes(0);
+    expect(task3).toHaveBeenCalledTimes(0);
+
+    // Increase parallelization
+    queue.parallelize = 3;
+
+    // Complete first task
+    r1("result1");
+    await sleep(0);
+
+    // Now both remaining tasks should be running
+    expect(task2).toHaveBeenCalledTimes(1);
+    expect(task3).toHaveBeenCalledTimes(1);
+
+    r2("result2");
+    r3("result3");
+
+    const results = await Promise.all([res1, res2, res3]);
+    expect(results).toEqual(["result1", "result2", "result3"]);
+  });
+
+  it("should handle decreased parallelization correctly", async () => {
+    const queue = new Queue({ parallelize: 3 });
+    let r1!: (x: string) => void;
+    let r2!: (x: string) => void;
+    let r3!: (x: string) => void;
+
+    const p1 = new Promise((resolve) => (r1 = resolve));
+    const p2 = new Promise((resolve) => (r2 = resolve));
+    const p3 = new Promise((resolve) => (r3 = resolve));
+
+    const task1 = mock(() => p1);
+    const task2 = mock(() => p2);
+    const task3 = mock(() => p3);
+
+    // Add three tasks with parallelization = 3
+    queue.add(task1, noop);
+    queue.add(task2, noop);
+    queue.add(task3, noop);
+
+    // All three tasks should be running
+    expect(task1).toHaveBeenCalledTimes(1);
+    expect(task2).toHaveBeenCalledTimes(1);
+    expect(task3).toHaveBeenCalledTimes(1);
+    expect(queue.running).toBe(3);
+    expect(queue.queued).toBe(0);
+
+    // Decrease parallelization - should not affect already running tasks
+    queue.parallelize = 1;
+
+    // Add a fourth task
+    let r4!: (x: string) => void;
+    const p4 = new Promise((resolve) => (r4 = resolve));
+    const task4 = mock(() => p4);
+    queue.add(task4, noop);
+
+    // Fourth task should not be running yet
+    expect(queue.running).toBe(3);
+    expect(queue.queued).toBe(1);
+    expect(task4).toHaveBeenCalledTimes(0);
+
+    // Complete first task
+    r1("result1");
+    await sleep(0);
+
+    // Fourth task should still not be running because parallelization is now 1
+    // and we still have tasks 2 and 3 running
+    expect(queue.running).toBe(2);
+    expect(queue.queued).toBe(1);
+    expect(task4).toHaveBeenCalledTimes(0);
+
+    // Complete second and third tasks
+    r2("result2");
+    r3("result3");
+    await sleep(0);
+
+    // Now fourth task should be running
+    expect(task4).toHaveBeenCalledTimes(1);
+    r4("result4");
+  });
+});
+
 describe("error handling", () => {
   it("should handle errors in async iterables correctly", async () => {
     const queue = new Queue();
