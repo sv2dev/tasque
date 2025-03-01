@@ -9,7 +9,7 @@ This library is built with low overhead in mind: [![bundle size](https://badgen.
 - [🏎️ Specify the number of parallel tasks](#parallel-execution)
 - [🔒 Define capacity](#queue-capacity)
 - [⏱️ React to queue position changes](#react-to-queue-position-changes)
-- [⏭️ Stream queue position and result](#stream-queue-position-and-result)
+- [⏭️ Stream queue position and values](#stream-queue-position-and-values)
 - [🚫 Discard tasks](#discard-tasks)
 
 ## Installation
@@ -116,7 +116,7 @@ queue.max = 1;
 
 ### React to queue position changes
 
-In this example, the task will log the queue position whenever it changes.
+In this example, a position listener is passed to the `add` method. It will be called every time the queue position changes.
 
 ```ts
 queue.add(
@@ -131,16 +131,16 @@ queue.add(
 );
 ```
 
-### Stream queue position and result
+### Stream queue position and values
 
-In this example, the task will stream the queue position and the task result.
+In this example, the task will stream the queue position and the task values.
 
 ```ts
-const iterable = queue.add(async () => {});
+const iterable = queue.iterate(async () => {});
 
-for await (const [pos, res] of iterable!) {
+for await (const [pos, value] of iterable!) {
   if (pos === null) {
-    console.log(`Task is finished with result ${res}`);
+    console.log(`Task emitted a value: ${value}`);
   } else if (pos === 0) {
     console.log(`Task is no longer queued and running`);
   } else {
@@ -154,16 +154,27 @@ for await (const [pos, res] of iterable!) {
 Tasks that not only return a result but yield values can be streamed as well.
 
 ```ts
-const iterable = queue.add(async function* () {
+const iterable = queue.iterate(async function* () {
   yield "Hello,";
   yield "world!";
 });
 
-for await (const [pos, res] of iterable!) {
+for await (const [pos, value] of iterable!) {
   if (pos === null) {
-    console.log(`The task yielded this value: ${res}`);
+    console.log(`The task yielded this value: ${value}`);
   }
 }
+```
+
+This can also be used with the `add` method. In this case, only the last yielded value is returned.
+
+```ts
+const result = await queue.add(async function* () {
+  yield "Hello,";
+  yield "world!";
+});
+
+console.log(result); // "world!"
 ```
 
 ### Discard tasks
@@ -171,9 +182,9 @@ for await (const [pos, res] of iterable!) {
 If you want to discard a task, you have to use iterable version of the `add` method.
 
 ```ts
-const iterable = queue.add(async () => {});
+const iterable = queue.iterate(async () => {});
 
-for await (const [pos, res] of iterable!) {
+for await (const [pos, value] of iterable!) {
   break; // Discards the task
 }
 ```
