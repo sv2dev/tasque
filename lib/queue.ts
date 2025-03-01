@@ -95,15 +95,15 @@ export class Queue {
    */
   add<T = void>(
     task: Task<T>,
-    opts?: PositionListener | TaskOpts
+    opts?: PositionListener | AbortSignal | TaskOpts
   ): Promise<T> | null {
     if (this.q >= this.max) return null;
-    if (typeof opts === "function") opts = { listener: opts };
+    opts = normalizeOpts(opts);
     const iterator = this.i(task, opts);
     return (async () => {
       let value!: T;
       for await (const [pos, v] of iterator) {
-        if (pos !== null) opts?.listener?.(pos);
+        if (pos !== null) opts.listener?.(pos);
         else value = v as T;
       }
       return value;
@@ -151,14 +151,14 @@ export class Queue {
    */
   iterate<T = void>(
     task: Task<T>,
-    opts?: IterateOpts
+    opts?: AbortSignal | IterateOpts
   ): AsyncIterable<IterableValue<T>> | null {
-    return this.q >= this.max ? null : this.i(task, opts);
+    return this.q >= this.max ? null : this.i(task, normalizeOpts(opts));
   }
 
   private async *i<T>(
     task: Task<T>,
-    { signal }: IterateOpts = {}
+    { signal }: IterateOpts
   ): AsyncGenerator<IterableValue<T>> {
     let t!: T | AsyncIterable<T> | Promise<T> | undefined;
     let pos = this.p > this.r ? 0 : ++this.q;
@@ -195,3 +195,13 @@ export class Queue {
     return (this.d = new Promise<void>((r) => (this.c = r)));
   }
 }
+
+const normalizeOpts = (
+  opts: TaskOpts | PositionListener | AbortSignal | undefined
+): TaskOpts => {
+  return opts instanceof AbortSignal
+    ? { signal: opts }
+    : typeof opts === "object"
+    ? opts
+    : { listener: opts };
+};
