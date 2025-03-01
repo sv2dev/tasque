@@ -27,6 +27,19 @@ queue.add(async () => {});
 queue.add(async () => {});
 ```
 
+### Synchronous tasks
+
+You can also add synchronous tasks to the queue.
+
+```ts
+import { Queue } from "@sv2dev/queue";
+
+const queue = new Queue();
+
+queue.add(async () => {});
+queue.add(() => {});
+```
+
 ### Parallel execution
 
 In this example, always two tasks are executed in parallel. If one task is finished, another one is started.

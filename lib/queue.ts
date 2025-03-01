@@ -36,15 +36,23 @@ export class Queue {
    * Changing this will not affect already enqueued tasks and if it is scaled up, it will
    * take effect as soon as one running task is finished.
    */
-  parallelize: number;
+  get parallelize(): number {
+    return this.p;
+  }
+  set parallelize(p: number) {
+    let diff = p - this.p;
+    this.p = p;
+    while (diff-- > 0) setTimeout(() => this.n());
+  }
+  private p = 1;
   /** The number of tasks currently enqueued (excluding the currently running tasks). */
-  private _q = 0;
+  private q = 0;
   /** The number of currently running tasks. */
-  private _r = 0;
+  private r = 0;
   /** Notifies completion of a task. */
-  private _c!: () => void;
+  private c!: () => void;
   /** A promise which is resolved and recreated, every time a task is done. */
-  private _d = new Promise<void>((r) => (this._c = r));
+  private d!: Promise<void>;
 
   /**
    * Creates a new queue.
@@ -54,21 +62,22 @@ export class Queue {
    */
   constructor({ max = Number.MAX_SAFE_INTEGER, parallelize = 1 } = {}) {
     this.max = max;
-    this.parallelize = parallelize;
+    this.p = parallelize;
+    this.n();
   }
 
   /**
    * The number of tasks currently enqueued (excluding the currently running tasks).
    */
   get queued(): number {
-    return this._q;
+    return this.q;
   }
 
   /**
    * The number of tasks currently running.
    */
   get running(): number {
-    return this._r;
+    return this.r;
   }
 
   /**
@@ -123,8 +132,8 @@ export class Queue {
     task: Task<T>,
     listener?: PositionListener
   ): AsyncIterable<IterableValue<T>> | Promise<T> | null {
-    if (this._q >= this.max) return null;
-    const iterator = this.#iterate(task);
+    if (this.q >= this.max) return null;
+    const iterator = this.i(task);
     if (!listener) return iterator;
     return (async () => {
       for await (const [pos, value] of iterator) {
@@ -135,30 +144,34 @@ export class Queue {
     })();
   }
 
-  async *#iterate<T>(task: Task<T>): AsyncGenerator<IterableValue<T>> {
-    let t: T | AsyncIterable<T> | Promise<T> | null = null;
-    let pos = this.parallelize > this._r ? 0 : ++this._q;
+  private async *i<T>(task: Task<T>): AsyncGenerator<IterableValue<T>> {
+    let t!: T | AsyncIterable<T> | Promise<T> | undefined;
+    let pos = this.p > this.r ? 0 : ++this.q;
     try {
       if (pos > 0) {
         while (pos > 0) {
           yield [pos];
-          await this._d;
-          pos--;
+          await this.d;
+          if (this.p >= this.r) pos--;
         }
-        this._q--;
+        this.q--;
       }
       t = task();
-      this._r++;
+      this.r++;
       yield [0];
-      if (t !== null && typeof t === "object" && Symbol.asyncIterator in t)
+      if (t && typeof t === "object" && Symbol.asyncIterator in t)
         for await (const x of t) yield [null, x];
       else yield [null, await t];
       // Will be executed, if iteration is aborted or if the task is finished/errored.
     } finally {
-      if (pos > 0) this._q--;
-      if (t) this._r--;
-      this._c();
-      this._d = new Promise<void>((r) => (this._c = r));
+      if (pos > 0) this.q--;
+      if (t) this.r--;
+      this.n();
     }
+  }
+
+  private n() {
+    this.c?.();
+    return (this.d = new Promise<void>((r) => (this.c = r)));
   }
 }

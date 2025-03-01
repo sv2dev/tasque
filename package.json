@@ -1,16 +1,28 @@
 {
   "name": "@sv2dev/queue",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "A simple TypeScript task queue",
-  "main": "index.ts",
-  "module": "index.ts",
+  "main": "dist/queue.js",
+  "module": "dist/queue.js",
+  "types": "dist/queue.d.ts",
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/queue.js",
+      "types": "./dist/queue.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "repository": {
     "url": "https://github.com/sv2dev/queue",
     "type": "git"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "@types/bun": "latest"
