@@ -189,7 +189,11 @@ console.log(result); // "world!"
 
 ### Discard tasks
 
-If you want to discard a task, you have to use iterable version of the `add` method.
+There are several ways to discard tasks.
+
+#### Breaking iteration
+
+If you have an iterable, you can break the iteration to discard the task.
 
 ```ts
 const iterable = queue.iterate(async () => {});
@@ -200,3 +204,25 @@ for await (const [pos, value] of iterable!) {
 ```
 
 This only works if the task is not already running.
+
+#### Aborting tasks
+
+If you pass an `AbortSignal` to the `add` or `iterate` method, the task will be discarded if the signal is aborted.
+
+```ts
+const ctrl = new AbortController();
+const promise = queue.add(async () => {}, { signal: ctrl.signal });
+```
+
+You can also pass the `AbortSignal` directly as the options object.
+
+```ts
+const ctrl = new AbortController();
+const promise = queue.add(async () => {}, ctrl.signal);
+```
+
+For example, if you want to discard a task after a certain time, you can do something like this:
+
+```ts
+const promise = queue.add(async () => {}, AbortSignal.timeout(10_000));
+```
