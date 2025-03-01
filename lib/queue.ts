@@ -1,4 +1,4 @@
-type Task<T = void> = () => Promise<T> | AsyncIterable<T>;
+type Task<T = void> = () => T | Promise<T> | AsyncIterable<T>;
 type PositionListener = (position: number) => void;
 type IterableValue<T> =
   | readonly [position: number]
@@ -136,21 +136,23 @@ export class Queue {
   }
 
   async *#iterate<T>(task: Task<T>): AsyncGenerator<IterableValue<T>> {
-    let t: AsyncIterable<T> | Promise<T> | null = null;
+    let t: T | AsyncIterable<T> | Promise<T> | null = null;
     let pos = this.parallelize > this._r ? 0 : ++this._q;
     try {
       if (pos > 0) {
         while (pos > 0) {
-          yield [pos--];
+          yield [pos];
           await this._d;
+          pos--;
         }
         this._q--;
       }
       t = task();
       this._r++;
       yield [0];
-      if (t instanceof Promise) yield [null, await t];
-      else for await (const x of t) yield [null, x];
+      if (t !== null && typeof t === "object" && Symbol.asyncIterator in t)
+        for await (const x of t) yield [null, x];
+      else yield [null, await t];
       // Will be executed, if iteration is aborted or if the task is finished/errored.
     } finally {
       if (pos > 0) this._q--;

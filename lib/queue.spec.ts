@@ -255,6 +255,180 @@ describe("add()", () => {
         [6, null, "test"],
       ]);
     });
+
+    it("should unqueue a task when iteration aborts while in the queue", async () => {
+      const queue = new Queue();
+      const iterable1 = queue.add(execute)!;
+      const iterable2 = queue.add(execute)!;
+
+      await Promise.all([
+        iterateWithId(1, iterable1),
+        (async function () {
+          for await (const [pos, result] of iterable2) {
+            iteratedEvents.push([2, pos, result]);
+            if (pos === 1) return;
+          }
+        })(),
+      ]);
+
+      expect(queue.queued).toBe(0);
+      expect(queue.running).toBe(0);
+      expect(iteratedEvents).toEqual([
+        [1, 0],
+        [2, 1],
+        [1, null, "test"],
+      ]);
+    });
+
+    it("should not queue a task, if it is aborted before it is iterated over", async () => {
+      const queue = new Queue();
+      const iterable1 = queue.add(execute)!;
+      const iterable2 = queue.add(execute)!;
+
+      iterable1[Symbol.asyncIterator]().return?.();
+
+      await Promise.all([
+        iterateWithId(1, iterable1),
+        iterateWithId(2, iterable2),
+      ]);
+
+      expect(queue.queued).toBe(0);
+      expect(queue.running).toBe(0);
+      expect(iteratedEvents).toEqual([
+        [2, 0],
+        [2, null, "test"],
+      ]);
+    });
+  });
+});
+
+describe("error handling", () => {
+  it("should handle errors in async iterables correctly", async () => {
+    const queue = new Queue();
+    const error = new Error("async iterable error");
+
+    const iterable = queue.add(async function* () {
+      yield "first value";
+      throw error;
+    });
+
+    const results: any[] = [];
+    try {
+      for await (const event of iterable!) {
+        results.push(event);
+      }
+      throw new Error("Error was not thrown");
+    } catch (e) {
+      expect(e).toBe(error);
+    }
+
+    expect(results).toEqual([[0], [null, "first value"]]);
+    expect(queue.queued).toBe(0);
+    expect(queue.running).toBe(0);
+  });
+
+  it("should continue processing queue after an async iterable throws", async () => {
+    const queue = new Queue();
+    const error = new Error("async iterable error");
+
+    const iterable1 = queue.add(async function* () {
+      yield "value";
+      throw error;
+    });
+    const iterable2 = queue.add(execute);
+
+    try {
+      await Array.fromAsync(iterable1!);
+    } catch (e) {
+      expect(e).toBe(error);
+    }
+
+    const results = await Array.fromAsync(iterable2!);
+    expect(results).toEqual([[0], [null, "test"]]);
+  });
+});
+
+describe("max queue size", () => {
+  it("should respect dynamic changes to max queue size", async () => {
+    const queue = new Queue({ max: 2, parallelize: 1 });
+
+    // First task runs immediately
+    queue.add(execute, noop);
+    // Second and third tasks are queued
+    queue.add(execute, noop);
+    queue.add(execute, noop);
+
+    // Queue is full
+    expect(queue.add(execute, noop)).toBeNull();
+
+    // Increase max queue size
+    queue.max = 3;
+
+    // Now we can add one more
+    const result = queue.add(execute, noop);
+    expect(result).toBeInstanceOf(Promise);
+
+    // But no more than that
+    expect(queue.add(execute, noop)).toBeNull();
+  });
+
+  it("should handle decreasing max queue size", async () => {
+    const queue = new Queue({ max: 5, parallelize: 1 });
+
+    // First task runs immediately
+    queue.add(execute, noop);
+    // Next tasks are queued
+    queue.add(execute, noop);
+    queue.add(execute, noop);
+    queue.add(execute, noop);
+
+    // Decrease max queue size - should not affect already queued tasks
+    queue.max = 1;
+
+    // Can't add more tasks now
+    expect(queue.add(execute, noop)).toBeNull();
+
+    // But all previously queued tasks should still execute
+    expect(execute).toHaveBeenCalledTimes(1);
+    await sleep(100);
+    expect(execute).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe("edge cases", () => {
+  it("should handle empty tasks correctly", async () => {
+    const queue = new Queue();
+
+    const result = await queue.add(async () => {}, noop);
+
+    expect(result).toBeUndefined();
+  });
+
+  it("should handle synchronous errors in task creation", async () => {
+    const queue = new Queue();
+    const error = new Error("sync error");
+
+    const task = mock(() => {
+      throw error;
+    });
+
+    try {
+      await queue.add(task, noop);
+      throw new Error("Error was not thrown");
+    } catch (e) {
+      expect(e).toBe(error);
+    }
+
+    expect(queue.running).toBe(0);
+    expect(queue.queued).toBe(0);
+  });
+
+  it("should handle synchronous tasks", async () => {
+    const queue = new Queue();
+
+    const result = await queue.add(() => "direct value" as any, noop);
+
+    expect(result).toBe("direct value");
   });
 });
 
