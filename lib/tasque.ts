@@ -39,32 +39,19 @@ export function createQueue({
   max = Number.MAX_SAFE_INTEGER,
 
   parallelize = 1,
-} = {}) {
-  /** Internal: The number of tasks currently enqueued (excluding the currently running tasks). */
+} = {}): Tasque {
   let enqueued = 0;
-  /** Internal: The number of currently running tasks. */
   let running = 0;
-  /** Internal: Notifies completion of a task. */
   let complete!: () => void;
-  /** Internal: A promise which is resolved and recreated, every time a task is done. */
   let done!: Promise<void>;
   next();
   return {
-    /**
-     * The maximum number of tasks that can be enqueued (excluding the currently running tasks).
-     * Changing this will not affect already enqueued tasks.
-     */
     get max(): number {
       return max;
     },
     set max(m: number) {
       max = m;
     },
-    /**
-     * The number of tasks that can be executed in parallel.
-     * Changing this will not affect already enqueued tasks and if it is scaled up, it will
-     * take effect as soon as one running task is finished.
-     */
     get parallelize(): number {
       return parallelize;
     },
@@ -73,26 +60,12 @@ export function createQueue({
       parallelize = p;
       while (diff-- > 0) setTimeout(() => next());
     },
-    /**
-     * The number of tasks currently enqueued (excluding the currently running tasks).
-     */
     get queued(): number {
       return enqueued;
     },
-    /**
-     * The number of tasks currently running.
-     */
     get running(): number {
       return running;
     },
-    /**
-     * Adds a task to the queue.
-     *
-     * @param task - The task to add to the queue.
-     * @param opts - A listener that is called every time the queue position of the task changes or options.
-     * @returns A promise that resolves to the result of the task or `null` if the queue is full.
-     *   If the task is iterable, the last yielded value is returned.
-     */
     add<T = void>(
       task: Task<T>,
       opts?: PositionListener | AbortSignal | TaskOpts
@@ -108,46 +81,6 @@ export function createQueue({
         return value;
       })();
     },
-
-    /**
-     * Adds a task to the queue and returns an async iterable that yields the queue position and the task result.
-     *
-     * Yields `[number]` when the queue position changes.
-     * Then yields `[null, T]` when the task is finished or yields a value.
-     *
-     * @example
-     * ```ts
-     * const queue = new Tasque();
-     *
-     * const iterable = queue.iterate(async () => "Hello, world!");
-     * for await (const [position, result] of iterable!) {
-     *   if(position === null) {
-     *     console.log("Task finished", result);
-     *   } else {
-     *     console.log("Queue position changed");
-     *   }
-     * }
-     * ```
-     *
-     * @example
-     * ```ts
-     * const queue = new Tasque();
-     *
-     * const iterable = queue.iterate(async function* () {
-     *   yield "Hello,";
-     *   yield "world!";
-     * });
-     * for await (const [position, value] of iterable!) {
-     *   if(position === null) {
-     *     console.log("Task emitted value", value);
-     *   } else {
-     *     console.log("Queue position changed");
-     *   }
-     * }
-     * ```
-     * @param task - The task to add to the queue.
-     * @returns An async iterable that yields the queue position and the task result or `null` if the queue is full.
-     */
     iterate<T = void>(
       task: Task<T>,
       opts?: AbortSignal | IterateOpts
@@ -203,3 +136,80 @@ const normalizeOpts = (
     ? opts
     : { listener: opts };
 };
+
+export interface Tasque {
+  /**
+   * The maximum number of tasks that can be enqueued (excluding the currently running tasks).
+   * Changing this will not affect already enqueued tasks.
+   */
+  max: number;
+  /**
+   * The number of tasks that can be executed in parallel.
+   * Changing this will not affect already enqueued tasks and if it is scaled up, it will
+   * take effect as soon as one running task is finished.
+   */
+  parallelize: number;
+  /**
+   * The number of tasks currently enqueued (excluding the currently running tasks).
+   */
+  readonly queued: number;
+  /**
+   * The number of tasks currently running.
+   */
+  readonly running: number;
+  /**
+   * Adds a task to the queue.
+   *
+   * @param task - The task to add to the queue.
+   * @param opts - A listener that is called every time the queue position of the task changes or options.
+   * @returns A promise that resolves to the result of the task or `null` if the queue is full.
+   *   If the task is iterable, the last yielded value is returned.
+   */
+  add<T = void>(
+    task: Task<T>,
+    opts?: PositionListener | AbortSignal | TaskOpts
+  ): Promise<T> | null;
+  /**
+   * Adds a task to the queue and returns an async iterable that yields the queue position and the task result.
+   *
+   * Yields `[number]` when the queue position changes.
+   * Then yields `[null, T]` when the task is finished or yields a value.
+   *
+   * @example
+   * ```ts
+   * const queue = createQueue();
+   *
+   * const iterable = queue.iterate(async () => "Hello, world!");
+   * for await (const [position, result] of iterable!) {
+   *   if(position === null) {
+   *     console.log("Task finished", result);
+   *   } else {
+   *     console.log("Queue position changed");
+   *   }
+   * }
+   * ```
+   *
+   * @example
+   * ```ts
+   * const queue = createQueue();
+   *
+   * const iterable = queue.iterate(async function* () {
+   *   yield "Hello,";
+   *   yield "world!";
+   * });
+   * for await (const [position, value] of iterable!) {
+   *   if(position === null) {
+   *     console.log("Task emitted value", value);
+   *   } else {
+   *     console.log("Queue position changed");
+   *   }
+   * }
+   * ```
+   * @param task - The task to add to the queue.
+   * @returns An async iterable that yields the queue position and the task result or `null` if the queue is full.
+   */
+  iterate<T = void>(
+    task: Task<T>,
+    opts?: AbortSignal | IterateOpts
+  ): AsyncIterable<IterableValue<T>> | null;
+}
