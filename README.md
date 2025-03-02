@@ -1,5 +1,7 @@
 # tasque
 
+<img src="./logo.svg" alt="tasque logo" width="200" />
+
 A simple TypeScript task queue.
 
 This library is built with low overhead in mind: [![bundle size](https://badgen.net/bundlephobia/minzip/tasque)](https://bundlephobia.com/package/tasque)
