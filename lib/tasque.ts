@@ -12,8 +12,9 @@ type IterateOpts = Omit<TaskOpts, "listener">;
 /**
  * Creates a new task queue.
  *
- * @param max - The maximum number of tasks that can be enqueued (excluding the currently running tasks).
- * @param parallelize - The number of tasks that can be executed in parallel.
+ * @param opts - Options for the queue.
+ * @param opts.max - The maximum number of tasks that can be enqueued (excluding the currently running tasks).
+ * @param opts.parallelize - The number of tasks that can be executed in parallel.
  *
  * @example
  * ```ts
@@ -37,7 +38,6 @@ type IterateOpts = Omit<TaskOpts, "listener">;
  */
 export function createQueue({
   max = Number.MAX_SAFE_INTEGER,
-
   parallelize = 1,
 } = {}): Tasque {
   let enqueued = 0;
@@ -137,6 +137,16 @@ const normalizeOpts = (
     : { listener: opts };
 };
 
+/**
+ * A task queue.
+ *
+ * Allows scheduling tasks to be executed in parallel or sequentially.
+ *
+ * @example
+ * ```ts
+ * const queue = createQueue();
+ * ```
+ */
 export interface Tasque {
   /**
    * The maximum number of tasks that can be enqueued (excluding the currently running tasks).
