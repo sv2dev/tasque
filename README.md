@@ -1,8 +1,8 @@
-# @sv2dev/queue
+# tasque
 
 A simple TypeScript task queue.
 
-This library is built with low overhead in mind: [![bundle size](https://badgen.net/bundlephobia/minzip/@sv2dev/queue)](https://bundlephobia.com/package/@sv2dev/queue)
+This library is built with low overhead in mind: [![bundle size](https://badgen.net/bundlephobia/minzip/tasque)](https://bundlephobia.com/package/tasque)
 
 ## Features
 
@@ -14,31 +14,31 @@ This library is built with low overhead in mind: [![bundle size](https://badgen.
 
 ## Installation
 
-You can install this package using your favorite package manager from [npm](https://www.npmjs.com/package/@sv2dev/queue) or [jsr](https://jsr.io/@sv2dev/queue).
+You can install this package using your favorite package manager from [npm](https://www.npmjs.com/package/tasque) or [jsr](https://jsr.io/@sv2dev/tasque).
 
 you can pick one of the following commands:
 
 ```bash
 # npm
-npm install @sv2dev/queue
-bun install @sv2dev/queue
-pnpm install @sv2dev/queue
-yarn install @sv2dev/queue
-deno add npm:@sv2dev/queue
+npm install tasque
+bun install tasque
+pnpm install tasque
+yarn install tasque
+deno add npm:tasque
 # jsr
-npx jsr add @sv2dev/queue
-bunx jsr add @sv2dev/queue
-pnpm dlx jsr add @sv2dev/queue
-yarn dlx jsr add @sv2dev/queue
-deno add jsr:@sv2dev/queue
+npx jsr add @sv2dev/tasque
+bunx jsr add @sv2dev/tasque
+pnpm dlx jsr add @sv2dev/tasque
+yarn dlx jsr add @sv2dev/tasque
+deno add jsr:@sv2dev/tasque
 ```
 
 ## Usage
 
 ```ts
-import { Queue } from "@sv2dev/queue";
+import { Tasque } from "tasque";
 
-const queue = new Queue();
+const queue = new Tasque();
 ```
 
 ### Sequential execution
@@ -64,7 +64,7 @@ queue.add(() => {});
 In this example, always two tasks are executed in parallel. If one task is finished, another one is started.
 
 ```ts
-const queue = new Queue({ parallelize: 2 });
+const queue = new Tasque({ parallelize: 2 });
 
 queue.add(async () => {});
 queue.add(async () => {});
@@ -86,19 +86,19 @@ Scaling down the number of parallel tasks will not affect already running tasks,
 until the number of running tasks is reduced to the new parallel count.
 
 ```ts
-const queue = new Queue({ parallelize: 3 });
+const queue = new Tasque({ parallelize: 3 });
 // schedule some tasks
 queue.parallelize = 1;
 // less tasks will be executed in parallel when the running tasks are finished
 ```
 
-### Queue capacity
+### Tasque capacity
 
 The queue will reject new tasks if it is full. By default, the queue can hold an arbitrary number of tasks.
 But the capacity can be limited by setting the `max` option.
 
 ```ts
-const queue = new Queue({ max: 2 });
+const queue = new Tasque({ max: 2 });
 
 const res1 = queue.add(async () => {});
 const res2 = queue.add(async () => {});

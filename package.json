@@ -1,22 +1,22 @@
 {
-  "name": "@sv2dev/queue",
-  "version": "0.5.0",
+  "name": "tasque",
+  "version": "0.1.0",
   "description": "A simple TypeScript task queue",
-  "main": "dist/queue.js",
-  "module": "dist/queue.js",
-  "types": "dist/queue.d.ts",
+  "main": "dist/tasque.js",
+  "module": "dist/tasque.js",
+  "types": "dist/tasque.d.ts",
   "type": "module",
   "exports": {
     ".": {
-      "import": "./dist/queue.js",
-      "types": "./dist/queue.d.ts"
+      "import": "./dist/tasque.js",
+      "types": "./dist/tasque.d.ts"
     }
   },
   "files": [
     "dist"
   ],
   "repository": {
-    "url": "https://github.com/sv2dev/queue",
+    "url": "https://github.com/sv2dev/tasque",
     "type": "git"
   },
   "scripts": {

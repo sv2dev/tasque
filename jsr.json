@@ -1,7 +1,7 @@
 {
-  "name": "@sv2dev/queue",
-  "version": "0.5.0",
-  "exports": "./lib/queue.ts",
+  "name": "@sv2dev/tasque",
+  "version": "0.1.0",
+  "exports": "./lib/tasque.ts",
   "publish": {
     "include": ["LICENSE", "README.md", "**/*.ts"],
     "exclude": ["**/*.spec.ts"]

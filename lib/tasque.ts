@@ -30,7 +30,7 @@ type IterateOpts = Omit<TaskOpts, "listener">;
  * await result2;
  * ```
  */
-export class Queue {
+export class Tasque {
   /**
    * The maximum number of tasks that can be enqueued (excluding the currently running tasks).
    * Changing this will not affect already enqueued tasks.
@@ -118,7 +118,7 @@ export class Queue {
    *
    * @example
    * ```ts
-   * const queue = new Queue();
+   * const queue = new Tasque();
    *
    * const iterable = queue.iterate(async () => "Hello, world!");
    * for await (const [position, result] of iterable!) {
@@ -132,7 +132,7 @@ export class Queue {
    *
    * @example
    * ```ts
-   * const queue = new Queue();
+   * const queue = new Tasque();
    *
    * const iterable = queue.iterate(async function* () {
    *   yield "Hello,";
