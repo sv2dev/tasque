@@ -10,189 +10,187 @@ type TaskOpts = {
 type IterateOpts = Omit<TaskOpts, "listener">;
 
 /**
- * A simple task queue.
+ * Creates a new task queue.
+ *
+ * @param max - The maximum number of tasks that can be enqueued (excluding the currently running tasks).
+ * @param parallelize - The number of tasks that can be executed in parallel.
  *
  * @example
  * ```ts
- * const queue = new Queue();
+ * const queue = createQueue();
  *
- * const result1 = queue.push(async () => {
+ * const result1 = queue.add(async () => {
  *   await new Promise((resolve) => setTimeout(resolve, 1000));
  *   return "Hello, world!";
  * });
  *
- * const result = queue.push(async () => {
- *   await new Promise((resolve) => setTimeout(resolve, 1000));
- *   return "Hello, world!";
+ * const result2 = queue.iterate(async function* () {
+ *   yield "Hello,";
+ *   yield "world!";
  * });
  *
  * await result1;
- * await result2;
+ * for await (const [position, value] of result2!) {
+ *   console.log(position, value);
+ * }
  * ```
  */
-export class Tasque {
-  /**
-   * The maximum number of tasks that can be enqueued (excluding the currently running tasks).
-   * Changing this will not affect already enqueued tasks.
-   */
-  max: number;
-  /**
-   * The number of tasks that can be executed in parallel.
-   * Changing this will not affect already enqueued tasks and if it is scaled up, it will
-   * take effect as soon as one running task is finished.
-   */
-  get parallelize(): number {
-    return this.p;
-  }
-  set parallelize(p: number) {
-    let diff = p - this.p;
-    this.p = p;
-    while (diff-- > 0) setTimeout(() => this.n());
-  }
-  private p = 1;
+export function createQueue({
+  max = Number.MAX_SAFE_INTEGER,
+
+  parallelize = 1,
+} = {}) {
   /** Internal: The number of tasks currently enqueued (excluding the currently running tasks). */
-  private q = 0;
+  let enqueued = 0;
   /** Internal: The number of currently running tasks. */
-  private r = 0;
+  let running = 0;
   /** Internal: Notifies completion of a task. */
-  private c!: () => void;
+  let complete!: () => void;
   /** Internal: A promise which is resolved and recreated, every time a task is done. */
-  private d!: Promise<void>;
+  let done!: Promise<void>;
+  next();
+  return {
+    /**
+     * The maximum number of tasks that can be enqueued (excluding the currently running tasks).
+     * Changing this will not affect already enqueued tasks.
+     */
+    get max(): number {
+      return max;
+    },
+    set max(m: number) {
+      max = m;
+    },
+    /**
+     * The number of tasks that can be executed in parallel.
+     * Changing this will not affect already enqueued tasks and if it is scaled up, it will
+     * take effect as soon as one running task is finished.
+     */
+    get parallelize(): number {
+      return parallelize;
+    },
+    set parallelize(p: number) {
+      let diff = p - parallelize;
+      parallelize = p;
+      while (diff-- > 0) setTimeout(() => next());
+    },
+    /**
+     * The number of tasks currently enqueued (excluding the currently running tasks).
+     */
+    get queued(): number {
+      return enqueued;
+    },
+    /**
+     * The number of tasks currently running.
+     */
+    get running(): number {
+      return running;
+    },
+    /**
+     * Adds a task to the queue.
+     *
+     * @param task - The task to add to the queue.
+     * @param opts - A listener that is called every time the queue position of the task changes or options.
+     * @returns A promise that resolves to the result of the task or `null` if the queue is full.
+     *   If the task is iterable, the last yielded value is returned.
+     */
+    add<T = void>(
+      task: Task<T>,
+      opts?: PositionListener | AbortSignal | TaskOpts
+    ): Promise<T> | null {
+      if (enqueued >= max) return null;
+      opts = normalizeOpts(opts);
+      return (async () => {
+        let value!: T;
+        for await (const [pos, v] of i(task, opts)) {
+          if (pos !== null) opts.listener?.(pos);
+          else value = v as T;
+        }
+        return value;
+      })();
+    },
 
-  /**
-   * Creates a new queue.
-   *
-   * @param max - The maximum number of tasks that can be enqueued (excluding the currently running tasks).
-   * @param parallelize - The number of tasks that can be executed in parallel.
-   */
-  constructor({ max = Number.MAX_SAFE_INTEGER, parallelize = 1 } = {}) {
-    this.max = max;
-    this.p = parallelize;
-    this.n();
-  }
+    /**
+     * Adds a task to the queue and returns an async iterable that yields the queue position and the task result.
+     *
+     * Yields `[number]` when the queue position changes.
+     * Then yields `[null, T]` when the task is finished or yields a value.
+     *
+     * @example
+     * ```ts
+     * const queue = new Tasque();
+     *
+     * const iterable = queue.iterate(async () => "Hello, world!");
+     * for await (const [position, result] of iterable!) {
+     *   if(position === null) {
+     *     console.log("Task finished", result);
+     *   } else {
+     *     console.log("Queue position changed");
+     *   }
+     * }
+     * ```
+     *
+     * @example
+     * ```ts
+     * const queue = new Tasque();
+     *
+     * const iterable = queue.iterate(async function* () {
+     *   yield "Hello,";
+     *   yield "world!";
+     * });
+     * for await (const [position, value] of iterable!) {
+     *   if(position === null) {
+     *     console.log("Task emitted value", value);
+     *   } else {
+     *     console.log("Queue position changed");
+     *   }
+     * }
+     * ```
+     * @param task - The task to add to the queue.
+     * @returns An async iterable that yields the queue position and the task result or `null` if the queue is full.
+     */
+    iterate<T = void>(
+      task: Task<T>,
+      opts?: AbortSignal | IterateOpts
+    ): AsyncIterable<IterableValue<T>> | null {
+      return enqueued >= max ? null : i(task, normalizeOpts(opts));
+    },
+  };
 
-  /**
-   * The number of tasks currently enqueued (excluding the currently running tasks).
-   */
-  get queued(): number {
-    return this.q;
-  }
-
-  /**
-   * The number of tasks currently running.
-   */
-  get running(): number {
-    return this.r;
-  }
-
-  /**
-   * Adds a task to the queue.
-   *
-   * @param task - The task to add to the queue.
-   * @param opts - A listener that is called every time the queue position of the task changes or options.
-   * @returns A promise that resolves to the result of the task or `null` if the queue is full.
-   *   If the task is iterable, the last yielded value is returned.
-   */
-  add<T = void>(
-    task: Task<T>,
-    opts?: PositionListener | AbortSignal | TaskOpts
-  ): Promise<T> | null {
-    if (this.q >= this.max) return null;
-    opts = normalizeOpts(opts);
-    const iterator = this.i(task, opts);
-    return (async () => {
-      let value!: T;
-      for await (const [pos, v] of iterator) {
-        if (pos !== null) opts.listener?.(pos);
-        else value = v as T;
-      }
-      return value;
-    })();
-  }
-
-  /**
-   * Adds a task to the queue and returns an async iterable that yields the queue position and the task result.
-   *
-   * Yields `[number]` when the queue position changes.
-   * Then yields `[null, T]` when the task is finished or yields a value.
-   *
-   * @example
-   * ```ts
-   * const queue = new Tasque();
-   *
-   * const iterable = queue.iterate(async () => "Hello, world!");
-   * for await (const [position, result] of iterable!) {
-   *   if(position === null) {
-   *     console.log("Task finished", result);
-   *   } else {
-   *     console.log("Queue position changed");
-   *   }
-   * }
-   * ```
-   *
-   * @example
-   * ```ts
-   * const queue = new Tasque();
-   *
-   * const iterable = queue.iterate(async function* () {
-   *   yield "Hello,";
-   *   yield "world!";
-   * });
-   * for await (const [position, value] of iterable!) {
-   *   if(position === null) {
-   *     console.log("Task emitted value", value);
-   *   } else {
-   *     console.log("Queue position changed");
-   *   }
-   * }
-   * ```
-   * @param task - The task to add to the queue.
-   * @returns An async iterable that yields the queue position and the task result or `null` if the queue is full.
-   */
-  iterate<T = void>(
-    task: Task<T>,
-    opts?: AbortSignal | IterateOpts
-  ): AsyncIterable<IterableValue<T>> | null {
-    return this.q >= this.max ? null : this.i(task, normalizeOpts(opts));
-  }
-
-  private async *i<T>(
+  async function* i<T>(
     task: Task<T>,
     { signal }: IterateOpts
   ): AsyncGenerator<IterableValue<T>> {
     let t!: T | AsyncIterable<T> | Promise<T> | undefined;
-    let pos = this.p > this.r ? 0 : ++this.q;
-    const abortPromise =
-      signal &&
-      new Promise((_, r) =>
-        signal.addEventListener("abort", () => r(signal.reason))
-      );
+    let pos = parallelize > running ? 0 : ++enqueued;
+    const abortPromise = new Promise((_, r) =>
+      signal?.addEventListener("abort", () => r(signal.reason))
+    );
     try {
       if (pos > 0) {
         while (pos > 0) {
           yield [pos];
-          await (abortPromise ? Promise.race([abortPromise, this.d]) : this.d);
-          if (this.p >= this.r) pos--;
+          await Promise.race([abortPromise, done]);
+          if (parallelize >= running) pos--;
         }
-        this.q--;
+        enqueued--;
       }
       t = task();
-      this.r++;
+      running++;
       yield [0];
       if (t && typeof t === "object" && Symbol.asyncIterator in t)
         for await (const x of t) yield [null, x];
       else yield [null, await t];
       // Will be executed, if iteration is aborted or if the task is finished/errored.
     } finally {
-      if (pos > 0) this.q--;
-      if (t) this.r--;
-      this.n();
+      if (pos > 0) enqueued--;
+      if (t) running--;
+      next();
     }
   }
 
-  private n() {
-    this.c?.();
-    return (this.d = new Promise<void>((r) => (this.c = r)));
+  async function next() {
+    complete?.();
+    return (done = new Promise<void>((r) => (complete = r)));
   }
 }
 

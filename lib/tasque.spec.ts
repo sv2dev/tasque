@@ -1,6 +1,6 @@
 import { sleep } from "bun";
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import { Tasque } from "./tasque";
+import { createQueue } from "./tasque";
 
 const execute = mock(async () => "test");
 
@@ -10,7 +10,7 @@ beforeEach(() => {
 
 describe("add()", () => {
   it("should defer executing an incoming task, if the queue is empty", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
 
     queue.add(execute);
     await sleep(0);
@@ -20,7 +20,7 @@ describe("add()", () => {
   });
 
   it("should enqueue a task, if there is already a task running", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
     queue.add(execute);
 
     queue.add(execute);
@@ -30,7 +30,7 @@ describe("add()", () => {
   });
 
   it("should return the result of the task", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
 
     const result = await queue.add(async () => "test");
 
@@ -38,7 +38,7 @@ describe("add()", () => {
   });
 
   it("should return null, if the queue is full", () => {
-    const queue = new Tasque({ max: 2 });
+    const queue = createQueue({ max: 2 });
     // first is immediately executed
     const result1 = queue.add(execute);
     // second and third are queued
@@ -55,7 +55,7 @@ describe("add()", () => {
   });
 
   it("should execute the next task, when the current one is finished", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
     const execute = mock(async () => {});
 
     const result1 = queue.add(execute);
@@ -68,7 +68,7 @@ describe("add()", () => {
   });
 
   it("should run a configured amount of tasks in parallel", async () => {
-    const queue = new Tasque({ parallelize: 2 });
+    const queue = createQueue({ parallelize: 2 });
     let r1!: (x: string) => void;
     const p1 = new Promise<string>((resolve) => (r1 = resolve));
     let r2!: (x: string) => void;
@@ -92,7 +92,7 @@ describe("add()", () => {
   });
 
   it("should continue executing tasks, even if a task throws an error", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
     const error = new Error("test");
 
     const res1 = queue.add(async () => {
@@ -111,7 +111,7 @@ describe("add()", () => {
 
   describe("position listener", () => {
     it("should be called with 0, if a task is added to the queue and executed immediately", async () => {
-      const queue = new Tasque();
+      const queue = createQueue();
       const listener = mock();
 
       queue.add(execute, listener);
@@ -121,7 +121,7 @@ describe("add()", () => {
     });
 
     it("should be called when the queue position changes", async () => {
-      const queue = new Tasque();
+      const queue = createQueue();
       const listener = mock();
 
       queue.add(execute);
@@ -132,7 +132,7 @@ describe("add()", () => {
     });
 
     it("can be passed as an option", async () => {
-      const queue = new Tasque();
+      const queue = createQueue();
       const listener = mock();
 
       queue.add(execute, { listener });
@@ -145,7 +145,7 @@ describe("add()", () => {
 
 describe("iterate()", () => {
   it("should return null, if the queue is full", () => {
-    const queue = new Tasque({ max: 1 });
+    const queue = createQueue({ max: 1 });
     // We need to iterate overt the iterable to pull the values. Otherwise queueing will not work.
     // first is immediately executed
     Array.fromAsync(queue.iterate(execute)!);
@@ -159,7 +159,7 @@ describe("iterate()", () => {
   });
 
   it("should return an async iterable, that yields the queue position and the task result", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
 
     const iterable = queue.iterate(execute);
 
@@ -167,7 +167,7 @@ describe("iterate()", () => {
   });
 
   it("should yield the correct queue positions", async () => {
-    const queue = new Tasque({ parallelize: 2 });
+    const queue = createQueue({ parallelize: 2 });
 
     const iterable1 = queue.iterate(execute);
     const iterable2 = queue.iterate(execute);
@@ -185,7 +185,7 @@ describe("iterate()", () => {
   });
 
   it("should yield the correct queue positions in the correct order", async () => {
-    const queue = new Tasque({ parallelize: 2 });
+    const queue = createQueue({ parallelize: 2 });
 
     const iterable1 = queue.iterate(execute);
     const iterable2 = queue.iterate(execute);
@@ -209,7 +209,7 @@ describe("iterate()", () => {
   });
 
   it("should iterate over an async iterable", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
 
     const iterable = queue.iterate(async function* () {
       yield "a";
@@ -224,7 +224,7 @@ describe("iterate()", () => {
   });
 
   it("should correctly count positions, if the queue is emptied and then filled again", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
     const iterable1 = queue.iterate(execute);
     const iterable2 = queue.iterate(execute);
     const iterable3 = queue.iterate(execute);
@@ -266,7 +266,7 @@ describe("iterate()", () => {
   });
 
   it("should unqueue a task when iteration aborts while in the queue", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
     const iterable1 = queue.iterate(execute)!;
     const iterable2 = queue.iterate(execute)!;
 
@@ -290,7 +290,7 @@ describe("iterate()", () => {
   });
 
   it("should not queue a task, if it is aborted before it is iterated over", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
     const iterable1 = queue.iterate(execute)!;
     const iterable2 = queue.iterate(execute)!;
 
@@ -312,7 +312,7 @@ describe("iterate()", () => {
 
 describe("dynamic parallelization", () => {
   it("should adapt to increased parallelization", async () => {
-    const queue = new Tasque({ parallelize: 1 });
+    const queue = createQueue({ parallelize: 1 });
     let r1!: (x: string) => void;
     let r2!: (x: string) => void;
     let r3!: (x: string) => void;
@@ -354,7 +354,7 @@ describe("dynamic parallelization", () => {
   });
 
   it("should handle decreased parallelization correctly", async () => {
-    const queue = new Tasque({ parallelize: 3 });
+    const queue = createQueue({ parallelize: 3 });
     let r1!: (x: string) => void;
     let r2!: (x: string) => void;
     let r3!: (x: string) => void;
@@ -416,7 +416,7 @@ describe("dynamic parallelization", () => {
 
 describe("error handling", () => {
   it("should handle errors in async iterables correctly", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
     const error = new Error("async iterable error");
 
     const iterable = queue.iterate(async function* () {
@@ -440,7 +440,7 @@ describe("error handling", () => {
   });
 
   it("should continue processing queue after an async iterable throws", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
     const error = new Error("async iterable error");
 
     const iterable1 = queue.iterate(async function* () {
@@ -462,7 +462,7 @@ describe("error handling", () => {
 
 describe("max queue size", () => {
   it("should respect dynamic changes to max queue size", async () => {
-    const queue = new Tasque({ max: 2, parallelize: 1 });
+    const queue = createQueue({ max: 2, parallelize: 1 });
 
     // First task runs immediately
     queue.add(execute);
@@ -485,7 +485,7 @@ describe("max queue size", () => {
   });
 
   it("should handle decreasing max queue size", async () => {
-    const queue = new Tasque({ max: 5, parallelize: 1 });
+    const queue = createQueue({ max: 5, parallelize: 1 });
 
     // First task runs immediately
     queue.add(execute);
@@ -509,7 +509,7 @@ describe("max queue size", () => {
 
 describe("edge cases", () => {
   it("should handle empty tasks correctly", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
 
     const result = await queue.add(async () => {});
 
@@ -517,7 +517,7 @@ describe("edge cases", () => {
   });
 
   it("should handle synchronous errors in task creation", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
     const error = new Error("sync error");
 
     const task = mock(() => {
@@ -536,7 +536,7 @@ describe("edge cases", () => {
   });
 
   it("should handle synchronous tasks", async () => {
-    const queue = new Tasque();
+    const queue = createQueue();
 
     const result = await queue.add(() => "direct value" as any);
 
@@ -546,7 +546,7 @@ describe("edge cases", () => {
 
 describe("abort signal", () => {
   it("should abort a task when queued", async () => {
-    const queue = new Tasque({ parallelize: 0 });
+    const queue = createQueue({ parallelize: 0 });
     let r!: (x: string) => void;
     const p = new Promise<string>((resolve) => (r = resolve));
     const task = mock(() => p);

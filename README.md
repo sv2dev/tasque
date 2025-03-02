@@ -18,7 +18,7 @@ This library is built with low overhead in mind: [![bundle size](https://badgen.
 
 You can install this package using your favorite package manager from [npm](https://www.npmjs.com/package/tasque) or [jsr](https://jsr.io/@sv2dev/tasque).
 
-you can pick one of the following commands:
+You can pick one of the following commands:
 
 ```bash
 # npm
@@ -38,9 +38,9 @@ deno add jsr:@sv2dev/tasque
 ## Usage
 
 ```ts
-import { Tasque } from "tasque";
+import { createQueue } from "tasque";
 
-const queue = new Tasque();
+const queue = createQueue();
 ```
 
 ### Sequential execution
@@ -66,7 +66,7 @@ queue.add(() => {});
 In this example, always two tasks are executed in parallel. If one task is finished, another one is started.
 
 ```ts
-const queue = new Tasque({ parallelize: 2 });
+const queue = createQueue({ parallelize: 2 });
 
 queue.add(async () => {});
 queue.add(async () => {});
@@ -88,19 +88,19 @@ Scaling down the number of parallel tasks will not affect already running tasks,
 until the number of running tasks is reduced to the new parallel count.
 
 ```ts
-const queue = new Tasque({ parallelize: 3 });
+const queue = createQueue({ parallelize: 3 });
 // schedule some tasks
 queue.parallelize = 1;
 // less tasks will be executed in parallel when the running tasks are finished
 ```
 
-### Tasque capacity
+### Queue capacity
 
 The queue will reject new tasks if it is full. By default, the queue can hold an arbitrary number of tasks.
 But the capacity can be limited by setting the `max` option.
 
 ```ts
-const queue = new Tasque({ max: 2 });
+const queue = createQueue({ max: 2 });
 
 const res1 = queue.add(async () => {});
 const res2 = queue.add(async () => {});
