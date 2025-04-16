@@ -340,7 +340,7 @@ describe("dynamic parallelization", () => {
 
     // Complete first task
     r1("result1");
-    await sleep(0);
+    await sleep(1);
 
     // Now both remaining tasks should be running
     expect(task2).toHaveBeenCalledTimes(1);
