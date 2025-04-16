@@ -25,9 +25,9 @@
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "^1.2.9"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.8.3"
   }
 }
